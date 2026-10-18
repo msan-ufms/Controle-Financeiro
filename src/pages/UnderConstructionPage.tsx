@@ -1,6 +1,7 @@
 import { ArrowLeft, ArrowUpRight, House } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import constructionImage from "../assets/pagina-em-construcao.jpg";
+
+import constructionImage from "../assets/pagina-em-construcao.png";
 
 export default function UnderConstructionPage({}) {
   const navigate = useNavigate();

@@ -1,11 +1,4 @@
-import {
-  AlertCircle,
-  ArrowDownLeft,
-  Check,
-  Plus,
-  Sparkles,
-  Wallet,
-} from "lucide-react";
+import { AlertCircle, ArrowDownLeft, Check, Plus, Wallet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { Payable } from "../types/payable";
 import { formatCurrency } from "../utils/currency";

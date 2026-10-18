@@ -27,7 +27,7 @@ export default function PayableTable({
         <table className="w-full text-left">
           <thead className="bg-slate-50/80 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
             <tr>
-              <th className="px-6 py-4">Descrição / fornecedor</th>
+              <th className="px-6 py-4">Descrição</th>
               <th className="px-4 py-4">Categoria</th>
               <th className="px-4 py-4">Vencimento</th>
               <th className="px-4 py-4">Valor</th>
@@ -46,9 +46,6 @@ export default function PayableTable({
                     <div>
                       <p className="text-sm font-bold text-slate-800">
                         {payable.description}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        {payable.supplier || "Fornecedor não informado"}
                       </p>
                     </div>
                   </div>

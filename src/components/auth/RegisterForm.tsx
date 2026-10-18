@@ -48,7 +48,7 @@ export default function RegisterForm() {
       </div>
       <form onSubmit={submit} className="space-y-4">
         <AuthField
-          label="Nome completo"
+          label="Nome/Apelido"
           name="name"
           autoComplete="name"
           placeholder="Como podemos chamar você?"

@@ -25,7 +25,7 @@ export default function RecentPayables({ payables }: { payables: Payable[] }) {
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-50 text-slate-500"><FileText size={18} /></div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-slate-800">{payable.description}</p>
-                <p className="mt-1 truncate text-xs text-slate-400">{payable.supplier} · Vence em {formatDate(payable.dueDate)}</p>
+                <p className="mt-1 truncate text-xs text-slate-400">{payable.category} · Vence em {formatDate(payable.dueDate)}</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
