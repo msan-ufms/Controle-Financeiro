@@ -9,7 +9,7 @@ Aluno : San Midler Gomes de Souza
 
 Utiliza o React, Vite, Typescript, CSS, TailWind.
 
-Atualizado em 15/12/2026
+Atualizado em 15/10/2026
 
 Ainda não possui integração com banco de dados.
 
