@@ -1,4 +1,11 @@
-import { CheckCircle2, FileText, Pencil, Search, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  FileText,
+  Pencil,
+  Search,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import type { Payable } from "../../types/payable";
 import { formatCurrency } from "../../utils/currency";
 import { formatDate } from "../../utils/date";
@@ -10,6 +17,7 @@ type PayableTableProps = {
   totalPayables: number;
   onEdit: (payable: Payable) => void;
   onMarkPaid: (payable: Payable) => void;
+  onUnmarkPaid: (payable: Payable) => void;
   onRemove: (payable: Payable) => void;
 };
 
@@ -18,6 +26,8 @@ export default function PayableTable({
   totalPayables,
   onEdit,
   onMarkPaid,
+  onUnmarkPaid,
+
   onRemove,
 }: PayableTableProps) {
   //Página de Contas a Pagar.
@@ -26,16 +36,20 @@ export default function PayableTable({
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full text-left">
           <thead className="bg-slate-50/80 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+            {/*cabeçalho*/}
             <tr>
               <th className="px-6 py-4">Descrição</th>
               <th className="px-4 py-4">Categoria</th>
               <th className="px-4 py-4">Vencimento</th>
+              <th className="px-4 py-4">Pagamento</th>
               <th className="px-4 py-4">Valor</th>
               <th className="px-4 py-4">Situação</th>
               <th className="px-4 py-4 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
+            {" "}
+            {/*corpo da tabela*/}
             {payables.map((payable) => (
               <tr key={payable.id} className="transition hover:bg-slate-50/60">
                 <td className="px-6 py-4">
@@ -56,6 +70,9 @@ export default function PayableTable({
                 <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">
                   {formatDate(payable.dueDate)}
                 </td>
+                <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">
+                  {payable.paymentDate ? formatDate(payable.paymentDate) : "—"}
+                </td>
                 <td className="whitespace-nowrap px-4 py-4 text-sm font-extrabold text-slate-800">
                   {formatCurrency(payable.amount)}
                 </td>
@@ -72,14 +89,25 @@ export default function PayableTable({
                     >
                       <Pencil size={16} />
                     </button>
-                    {payable.status !== "Paga" && (
+                    {payable.status !== "Paga" ? (
                       <button
                         type="button"
                         title="Marcar como paga"
+                        aria-label="Marcar como paga"
                         onClick={() => onMarkPaid(payable)}
                         className="rounded-lg p-2 text-slate-400 hover:bg-emerald-50 hover:text-emerald-700"
                       >
                         <CheckCircle2 size={16} />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        title="Desfazer pagamento"
+                        aria-label="Desfazer pagamento"
+                        onClick={() => onUnmarkPaid(payable)}
+                        className="rounded-lg p-2 text-slate-400 hover:bg-amber-50 hover:text-amber-700"
+                      >
+                        <Undo2 size={16} />
                       </button>
                     )}
                     <button
@@ -104,6 +132,7 @@ export default function PayableTable({
             payable={payable}
             onEdit={onEdit}
             onMarkPaid={onMarkPaid}
+            onUnmarkPaid={onUnmarkPaid}
             onRemove={onRemove}
           />
         ))}

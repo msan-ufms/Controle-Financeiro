@@ -5,6 +5,7 @@ export type Payable = {
   description: string;
   category: string;
   dueDate: string;
+  paymentDate?: string;
   amount: number;
   status: PayableStatus;
   notes?: string;
@@ -14,6 +15,7 @@ export type PayableFormValues = {
   description: string;
   category: string;
   dueDate: string;
+  paymentDate: string;
   amount: string;
   status: PayableStatus;
   notes: string;

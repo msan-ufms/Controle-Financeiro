@@ -113,6 +113,7 @@ export default function PayablesPage({
       description: values.description.trim(),
       category: values.category,
       dueDate: values.dueDate,
+      paymentDate: status === "Paga" ? values.paymentDate : undefined,
       amount,
       status,
       notes: values.notes.trim(),
@@ -140,12 +141,42 @@ export default function PayablesPage({
   }
 
   function markPaid(payable: Payable) {
+    //Essa função marca o pagamento e insere a data atual como data de pagamento.
     setPayables((current) =>
       current.map((item) =>
-        item.id === payable.id ? { ...item, status: "Paga" } : item,
+        item.id === payable.id
+          ? {
+              ...item,
+              status: "Paga",
+              paymentDate: getTodayDate(),
+            }
+          : item,
       ),
     );
-    setNotice("Conta marcada como paga nesta demonstração.");
+
+    setNotice("Conta marcada como paga.");
+  }
+
+  function unmarkPaid(payable: Payable) {
+    //Essa função remove a data de pagamento e recupera o status correto segundo o vencimento.
+    const today = getTodayDate();
+
+    const status: PayableStatus =
+      payable.dueDate < today ? "Vencida" : "Pendente";
+
+    setPayables((current) =>
+      current.map((item) =>
+        item.id === payable.id
+          ? {
+              ...item,
+              status,
+              paymentDate: undefined,
+            }
+          : item,
+      ),
+    );
+
+    setNotice("Pagamento desfeito. O status da conta foi atualizado.");
   }
 
   function remove(payable: Payable) {
@@ -229,6 +260,7 @@ export default function PayablesPage({
           totalPayables={payables.length}
           onEdit={openEdit}
           onMarkPaid={markPaid}
+          onUnmarkPaid={unmarkPaid}
           onRemove={remove}
         />
       </div>

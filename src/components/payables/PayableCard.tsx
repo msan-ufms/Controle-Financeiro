@@ -1,4 +1,4 @@
-import { CheckCircle2, FileText, Pencil, Trash2 } from "lucide-react";
+import { CheckCircle2, FileText, Pencil, Trash2, Undo2 } from "lucide-react";
 import type { Payable } from "../../types/payable";
 import { formatCurrency } from "../../utils/currency";
 import { formatDate } from "../../utils/date";
@@ -8,6 +8,7 @@ type PayableCardProps = {
   payable: Payable;
   onEdit: (payable: Payable) => void;
   onMarkPaid: (payable: Payable) => void;
+  onUnmarkPaid: (payable: Payable) => void;
   onRemove: (payable: Payable) => void;
 };
 
@@ -15,6 +16,8 @@ export default function PayableCard({
   payable,
   onEdit,
   onMarkPaid,
+  onUnmarkPaid,
+
   onRemove,
 }: PayableCardProps) {
   return (
@@ -36,6 +39,11 @@ export default function PayableCard({
           <p className="text-xs text-slate-400">
             Vence em {formatDate(payable.dueDate)}
           </p>
+          {payable.paymentDate && (
+            <p className="mt-1 text-xs text-emerald-700">
+              Pago em {formatDate(payable.paymentDate)}
+            </p>
+          )}
           <p className="mt-1 font-display text-lg font-extrabold">
             {formatCurrency(payable.amount)}
           </p>
@@ -49,14 +57,25 @@ export default function PayableCard({
           >
             <Pencil size={16} />
           </button>
-          {payable.status !== "Paga" && (
+          {payable.status !== "Paga" ? (
             <button
               type="button"
               aria-label="Marcar como paga"
+              title="Marcar como paga"
               onClick={() => onMarkPaid(payable)}
               className="rounded-lg p-2 text-emerald-700 hover:bg-emerald-50"
             >
               <CheckCircle2 size={16} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              aria-label="Desfazer pagamento"
+              title="Desfazer pagamento"
+              onClick={() => onUnmarkPaid(payable)}
+              className="rounded-lg p-2 text-amber-700 hover:bg-amber-50"
+            >
+              <Undo2 size={16} />
             </button>
           )}
           <button

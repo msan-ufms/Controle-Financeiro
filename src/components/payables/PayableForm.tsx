@@ -14,6 +14,7 @@ const emptyForm: PayableFormValues = {
   description: "",
   category: "",
   dueDate: new Date().toISOString().slice(0, 10),
+  paymentDate: "",
   amount: "",
   status: "Pendente",
   notes: "",
@@ -25,12 +26,6 @@ type PayableFormProps = {
   onClose: () => void;
   onSave: (values: PayableFormValues, payableId?: number) => void;
 };
-
-const statusOptions: { label: string; value: PayableStatus }[] = [
-  { label: "Pendente", value: "Pendente" },
-  { label: "Vencida", value: "Vencida" },
-  { label: "Paga", value: "Paga" },
-];
 
 function getTodayDate() {
   const today = new Date();
@@ -68,6 +63,7 @@ export default function PayableForm({
         description: payable.description,
         category: payable.category,
         dueDate: payable.dueDate,
+        paymentDate: payable.paymentDate ?? "",
         amount: String(payable.amount),
         status: payable.status,
         notes: payable.notes ?? "",
@@ -103,13 +99,6 @@ export default function PayableForm({
     const today = getTodayDate();
     const amount = Number(form.amount.replace(",", "."));
 
-    if (form.status === "Vencida" && form.dueDate >= today) {
-      setError(
-        "Não é possível cadastrar uma conta vencida com vencimento hoje ou em uma data futura.",
-      );
-      return;
-    }
-
     if (!Number.isFinite(amount) || amount <= 0) {
       setError("Informe um valor maior que zero.");
       return;
@@ -122,10 +111,14 @@ export default function PayableForm({
       setError("Selecione uma categoria válida.");
       return;
     }
-    const finalStatus =
-      form.status === "Paga"
-        ? "Paga"
-        : getStatusByDueDate(form.dueDate, form.status);
+    const finalStatus = form.paymentDate //a data de pagamento determina se a conta foi paga; caso contrário, o vencimento determina se está pendente ou vencida.
+      ? "Paga"
+      : getStatusByDueDate(form.dueDate, "Pendente");
+
+    if (form.paymentDate && form.paymentDate > today) {
+      setError("A data de pagamento não pode ser posterior à data atual.");
+      return;
+    }
 
     onSave(
       { ...form, amount: String(amount), status: finalStatus },
@@ -183,15 +176,14 @@ export default function PayableForm({
               value: category,
             }))}
           />
-          <Select
-            label="Status da conta *"
-            name="status"
-            required
-            value={form.status}
-            onChange={(event) =>
-              update("status", event.target.value as PayableStatus)
-            }
-            options={statusOptions}
+
+          <Input
+            label="Data de pagamento"
+            name="paymentDate"
+            type="date"
+            value={form.paymentDate}
+            max={getTodayDate()}
+            onChange={(event) => update("paymentDate", event.target.value)}
           />
           <div className="sm:col-span-2">
             <label className="block">
