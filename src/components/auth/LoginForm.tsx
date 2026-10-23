@@ -1,15 +1,59 @@
 import { useState, type FormEvent } from "react";
 import { ArrowUpRight, CircleUserRound, LockKeyhole } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import AuthField from "./AuthField";
 import Button from "../ui/Button";
+import { supabase } from "../../lib/supabase";
 
 export default function LoginForm() {
   const [message, setMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false); //controla o envio do formulário e evita novas tentativas enquanto uma autenticação está em andamento.
+  const navigate = useNavigate();
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setMessage("Demonstração: autenticação ainda não conectada ao backend.");
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); //impede o recarregamento da página ao enviar o formulário.
+
+    if (isSubmitting) return;
+
+    setMessage("");
+    setIsSubmitting(true);
+
+    const formData = new FormData(event.currentTarget); //obtém os valores dos campos email e password.
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+
+    //signInWithPassword: envia as credenciais ao Supabase Auth.
+    //error:identifica falhas na autenticação e exibe uma mensagem ao usuário.
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        //envia as credenciais ao Supabase Auth.
+        email,
+        password,
+      });
+
+      if (error) {
+        console.error("Erro no login:", error.message);
+
+        if (error.message === "Invalid login credentials") {
+          setMessage(
+            "E-mail ou senha inválidos. Confira os dados e tente novamente.",
+          );
+        } else {
+          setMessage("Não foi possível realizar o login. Tente novamente.");
+        }
+
+        return;
+      }
+
+      navigate("/"); //vai para a página inicial após o login bem-sucedido.
+    } catch (error) {
+      console.error("Erro ao conectar ao Supabase:", error);
+      setMessage(
+        "Não foi possível conectar ao serviço. Verifique sua conexão e tente novamente.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -62,7 +106,8 @@ export default function LoginForm() {
           </button>
         </div>
         <Button type="submit" className="w-full">
-          Entrar <ArrowUpRight size={17} />
+          {isSubmitting ? "Entrando..." : "Entrar"}
+          {!isSubmitting && <ArrowUpRight size={17} />}
         </Button>
         {message && (
           <p
