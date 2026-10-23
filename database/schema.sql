@@ -1,37 +1,29 @@
-
 -- =====================================================
 -- CONTA FACIL | CONTROLE FINANCEIRO
--- Banco de dados: PostgreSQL (Neon)
--- Arquivo: database/schema.sql
+-- Banco de dados: Supabase PostgreSQL
+-- Versao inicial: sem compartilhamento de transacoes
 -- =====================================================
 
--- 1. USUARIOS
-CREATE TABLE users (
-    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+-- 1. PERFIS DOS USUARIOS
+CREATE TABLE public.profiles (
+    id UUID PRIMARY KEY
+        REFERENCES auth.users(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    password_hash TEXT NOT NULL,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    phone VARCHAR(20),
+    avatar_url TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE UNIQUE INDEX uq_users_email_lower
-    ON users (LOWER(email));
-
 -- 2. CATEGORIAS
-CREATE TABLE categories (
+CREATE TABLE public.categories (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id BIGINT NOT NULL,
+    user_id UUID NOT NULL
+        REFERENCES auth.users(id) ON DELETE CASCADE,
     name VARCHAR(80) NOT NULL,
     type VARCHAR(10) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT fk_categories_user
-        FOREIGN KEY (user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE,
 
     CONSTRAINT ck_categories_type
         CHECK (type IN ('receita', 'despesa')),
@@ -43,10 +35,11 @@ CREATE TABLE categories (
         UNIQUE (user_id, id)
 );
 
--- 3. LANCAMENTOS FINANCEIROS
-CREATE TABLE transactions (
+-- 3. TRANSACOES FINANCEIRAS
+CREATE TABLE public.transactions (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    user_id BIGINT NOT NULL,
+    user_id UUID NOT NULL
+        REFERENCES auth.users(id) ON DELETE CASCADE,
     category_id BIGINT,
     description VARCHAR(200) NOT NULL,
     type VARCHAR(10) NOT NULL,
@@ -58,14 +51,9 @@ CREATE TABLE transactions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT fk_transactions_user
-        FOREIGN KEY (user_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE,
-
     CONSTRAINT fk_transactions_category_owner
         FOREIGN KEY (user_id, category_id)
-        REFERENCES categories(user_id, id)
+        REFERENCES public.categories(user_id, id)
         ON DELETE RESTRICT,
 
     CONSTRAINT ck_transactions_type
@@ -83,17 +71,28 @@ CREATE TABLE transactions (
 
 -- 4. INDICES
 CREATE INDEX idx_categories_user
-    ON categories(user_id);
+    ON public.categories(user_id);
 
 CREATE INDEX idx_transactions_user_due_date
-    ON transactions(user_id, due_date);
+    ON public.transactions(user_id, due_date);
 
 CREATE INDEX idx_transactions_user_status
-    ON transactions(user_id, status);
+    ON public.transactions(user_id, status);
 
 CREATE INDEX idx_transactions_category
-    ON transactions(category_id);
+    ON public.transactions(category_id);
+
+
+-- 5. SEGURANCA EM NIVEL DE LINHA (RLS)
+-- Ativa o controle de acesso aos registros de cada tabela.
+-- O acesso sera permitido conforme as politicas de seguranca
+-- definidas posteriormente para cada usuario autenticado.
+-- A ativacao do RLS, por si so, nao cria politicas de acesso.
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 
 -- =====================================================
--- FIM DO ESQUEMA
+-- FIM
 -- =====================================================
