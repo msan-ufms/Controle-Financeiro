@@ -135,10 +135,174 @@ FOR EACH ROW
 EXECUTE FUNCTION public.handle_new_user();
 
 
+-- 7. POLITICAS DE SEGURANCA (RLS)
+
+-- POLÍTICAS DE CONSULTAS: 
+-- permite que usuários autenticados façam consultas às tabelas,
+-- mas apenas aos registros que pertencem a eles, através do user_id, que é o identificador do usuário conectado.
+
+CREATE POLICY "Usuário pode consultar o próprio perfil"
+ON public.profiles
+FOR SELECT
+TO authenticated
+USING (
+    (SELECT auth.uid()) = id
+);
+
+CREATE POLICY "Usuário pode consultar próprias categorias"
+ON public.categories
+FOR SELECT
+TO authenticated
+USING (
+    (SELECT auth.uid()) = user_id
+);
+
+CREATE POLICY "Usuário pode consultar próprias transações"
+ON public.transactions
+FOR SELECT
+TO authenticated
+USING ((SELECT auth.uid()) = user_id);
+
+
+-- POLÍTICAS DE CADASTRO
+-- permite que usuários autenticados façam cadastros,
+-- impede que o usuário cadastre e vincule à outra pessoa
+
+CREATE POLICY "Usuário pode cadastrar próprias categorias"
+ON public.categories
+FOR INSERT
+TO authenticated
+WITH CHECK ((SELECT auth.uid()) = user_id); -- with check: GARANTE QUE O USUÁRIO SÓ PODE INSERIR CATEGORIAS COM SEU PRÓPRIO user_id.
+
+CREATE POLICY "Usuário pode cadastrar próprias transações"
+ON public.transactions
+FOR INSERT
+TO authenticated
+WITH CHECK ((SELECT auth.uid()) = user_id);
+
+
+
+-- POLÍTICAS DE EDIÇÃO
+-- permite que usuários autenticados façam edições
+-- impede que o usuário edite registros de outra pessoa
+
+CREATE POLICY "Usuário pode editar próprias categorias"
+ON public.categories
+FOR UPDATE
+TO authenticated
+USING ((SELECT auth.uid()) = user_id) -- USING: permite editar somente categorias que pertencem ao usuário autenticado.
+WITH CHECK ((SELECT auth.uid()) = user_id); -- WITH CHECK: impede que, após a edição, a categoria seja vinculada a outro usuário.
+
+CREATE POLICY "Usuário pode editar próprias transações"
+ON public.transactions
+FOR UPDATE
+TO authenticated
+USING ((SELECT auth.uid()) = user_id)
+WITH CHECK ((SELECT auth.uid()) = user_id);
+
+
+
+-- IMPEDE QUE O USUÁRIO EXCLUA UMA CATEGORIA VINCULADA À OUTRA PESSOA
+CREATE POLICY "Usuário pode excluir próprias categorias"
+ON public.categories
+FOR DELETE
+TO authenticated
+USING ((SELECT auth.uid()) = user_id);
+
+CREATE POLICY "Usuário pode excluir próprias transações"
+ON public.transactions
+FOR DELETE
+TO authenticated
+USING ((SELECT auth.uid()) = user_id);
+
+-- 8. GRANT DE PERMISSOES 
+--GRANT SELECT: permite que usuários autenticados façam consultas à tabela.
+
+--PERMITE A LEITURA
+GRANT SELECT ON TABLE public.profiles TO authenticated;
+GRANT SELECT ON TABLE public.categories TO authenticated;
+GRANT SELECT ON TABLE public.transactions TO authenticated;
+
+-- PERMITE O CADASTRO. INSERÇÃO.
+GRANT INSERT ON TABLE public.categories TO authenticated;
+GRANT INSERT ON TABLE public.transactions TO authenticated;
+
+-- PERMITE A EDIÇÃO.
+GRANT UPDATE ON TABLE public.categories TO authenticated;
+GRANT UPDATE ON TABLE public.transactions TO authenticated;
+
+-- PERMITE A EXCLUSÃO.
+GRANT DELETE ON TABLE public.categories TO authenticated;
+GRANT DELETE ON TABLE public.transactions TO authenticated;
+
+
+
+-- CONCEDE PERMISSÃO DE USO NAS SEQUÊNCIAS. Para a criação de registros quando o PostgreSQL precisar gerar os IDs automaticamente.
+-- PARA USUÁRIOS AUTENTICADOS, PERMITE O USO DAS SEQUÊNCIAS DE ID DAS TABELAS CATEGORIES E TRANSACTIONS.
+GRANT USAGE
+ON SEQUENCE
+    public.categories_id_seq,
+    public.transactions_id_seq
+TO authenticated;
+
+-- AJUSTE DE PRIVILÉGIOS PADRÃO PARA TABELAS FUTURAS
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+GRANT USAGE ON SEQUENCES TO authenticated;
+
+
+
+
+-- REVOKE: remove todas as permissões de acesso público às tabelas.
+-- No Supabase, anon é o papel usado para requisições sem uma sessão de usuário autenticada.
+
+-- Remover privilégios extras de anon
+REVOKE REFERENCES, TRIGGER, TRUNCATE
+ON TABLE
+    public.profiles,
+    public.categories,
+    public.transactions
+FROM anon;
+
+-- Remover todos os privilégios de anon das três tabelas,
+REVOKE ALL PRIVILEGES
+ON TABLE
+    public.profiles,
+    public.categories,
+    public.transactions
+FROM anon;
+
+
+
+-- AJUSTE DE PRIVILÉGIOS PADRÃO PARA TABELAS FUTURAS
+-- Ajustar os privilégios padrão de tabelas futuras
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+REVOKE ALL PRIVILEGES ON TABLES
+FROM anon, authenticated, service_role;
+
+-- AJUSTE DE PRIVILÉGIOS PADRÃO PARA TABELAS FUTURAS
+-- Restringir a execução padrão de funções
+-- novas funções serão privadas por padrão
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres
+REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
+
+
+-- Revoga a execução direta da função de criação automática de perfil,
+-- impedindo chamadas pelas roles PUBLIC, anon e authenticated.
+-- O gatilho on_auth_user_created permanece responsável por executá-la
+-- durante o cadastro de novos usuários.
+REVOKE EXECUTE ON FUNCTION public.handle_new_user()
+FROM PUBLIC, anon, authenticated;
+
+-- Revoga a execução direta da função responsável por habilitar o RLS
+-- automaticamente, restringindo seu uso pelas roles da API.
+-- O gatilho de evento ensure_rls permanece configurado.
+REVOKE EXECUTE ON FUNCTION public.rls_auto_enable()
+FROM PUBLIC, anon, authenticated;
+
+
 -- =====================================================
 -- FIM
 -- =====================================================
-
 
 
 
