@@ -10,6 +10,7 @@ import { initialPayables } from "./data/mockPayables";
 import { initialCategories } from "./data/categories";
 import type { Payable } from "./types/payable";
 import UnderConstructionPage from "./pages/UnderConstructionPage";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 export default function App() {
   const [payables, setPayables] = useState<Payable[]>(initialPayables);
@@ -19,10 +20,56 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/cadastro" element={<RegisterPage />} />
-      <Route path="/" element={<AppLayout><DashboardPage payables={payables} /></AppLayout>} />
-      <Route path="/contas" element={<AppLayout><PayablesPage payables={payables} setPayables={setPayables} categories={categories} /></AppLayout>} />
-      <Route path="/categorias" element={<AppLayout><CategoriesPage categories={categories} setCategories={setCategories} payables={payables} setPayables={setPayables} /></AppLayout>} />
-      <Route path="/relatorios" element={<AppLayout><UnderConstructionPage /></AppLayout>} />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <DashboardPage payables={payables} />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/contas"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <PayablesPage
+                payables={payables}
+                setPayables={setPayables}
+                categories={categories}
+              />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/categorias"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <CategoriesPage
+                categories={categories}
+                setCategories={setCategories}
+                payables={payables}
+                setPayables={setPayables}
+              />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/relatorios"
+        element={
+          <ProtectedRoute>
+            <AppLayout>
+              <UnderConstructionPage />
+            </AppLayout>
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );

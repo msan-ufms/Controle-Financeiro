@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import Brand from "./Brand";
+import { supabase } from "../../lib/supabase";
 
 export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate();
@@ -18,13 +19,13 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       label: "Categorias",
       icon: Blocks,
       end: false,
-    } /* quando implementar vai ser /categorias*/,
+    },
     {
       to: "/relatorios",
       label: "Relatórios",
       icon: FileText,
       end: false,
-    } /* quando implementar vai ser /categorias*/,
+    },
   ];
 
   return (
@@ -54,7 +55,24 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       <div className="mt-auto p-4">
         <button
           type="button"
-          onClick={() => navigate("/login")}
+          onClick={async () => {
+            try {
+              //
+              const { error } = await supabase.auth.signOut(); // O Supabase encerra a sessão autenticada.
+
+              if (error) {
+                console.error("Erro ao encerrar a sessão:", error);
+                window.alert(
+                  "Não foi possível sair da conta. Tente novamente.",
+                );
+                return;
+              }
+
+              navigate("/login", { replace: true }); // em caso de sucesso, o usuário é redirecionado para /login.
+            } catch {
+              window.alert("Erro de conexão ao tentar sair da conta.");
+            }
+          }}
           className="mt-4 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-50"
         >
           <LogOut size={18} /> Sair da conta

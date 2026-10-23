@@ -7,4 +7,6 @@ if (!supabaseUrl || !supabasePublishableKey) {
   throw new Error("Configure as variáveis do Supabase no arquivo .env.");
 }
 
+console.log("URL do Supabase configurada:", Boolean(supabaseUrl));
+console.log("Chave pública configurada:", Boolean(supabasePublishableKey));
 export const supabase = createClient(supabaseUrl, supabasePublishableKey);
