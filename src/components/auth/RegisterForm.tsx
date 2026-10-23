@@ -8,29 +8,65 @@ import {
 import { Link } from "react-router-dom";
 import AuthField from "./AuthField";
 import Button from "../ui/Button";
+import { supabase } from "../../lib/supabase";
 
 export default function RegisterForm() {
   const [message, setMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    {
-      /* impedir o envio tradicional do navegador para tratar com o javascript */
-    }
+
+    if (isSubmitting) return;
+
+    setMessage("");
+
     const formData = new FormData(event.currentTarget);
-    {
-      /* lê os valores preenchidos*/
-    }
-    if (formData.get("password") !== formData.get("confirmPassword")) {
-      {
-        /* apenas senha por enquanto */
-      }
+    const name = String(formData.get("name") ?? "").trim();
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+    const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+    if (password !== confirmPassword) {
       setMessage("As senhas informadas não coincidem.");
       return;
     }
-    setMessage(
-      "Cadastro demonstrativo validado no navegador. A gravação no banco será feita quando conectarmos a API.",
-    );
+
+    setIsSubmitting(true);
+    //signUp() cria a conta no Supabase Auth.
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        //options.data.name armazena o nome informado nos metadados do usuário.
+        options: {
+          data: {
+            name,
+          },
+        },
+      });
+
+      if (error) {
+        console.error("Erro no cadastro:", error.message);
+        setMessage(
+          "Não foi possível realizar o cadastro. Verifique os dados e tente novamente.",
+        );
+        return;
+      }
+
+      if (data.session) {
+        setMessage("Conta criada com sucesso! Você já pode acessar o sistema.");
+      } else {
+        setMessage(
+          "Cadastro iniciado! Verifique seu e-mail para confirmar a conta.",
+        );
+      }
+    } catch (error) {
+      console.error("Erro ao conectar ao Supabase:", error);
+      setMessage("Não foi possível conectar ao serviço. Tente novamente.");
+    } finally {
+      setIsSubmitting(false); //finally encerra o estado de carregamento mesmo se ocorrer um erro.
+    }
   }
 
   return (
@@ -93,7 +129,8 @@ export default function RegisterForm() {
           Li e concordo com os termos de uso e a política de privacidade.
         </label>
         <Button type="submit" className="w-full">
-          Criar minha conta <ArrowUpRight size={17} />
+          {isSubmitting ? "Criando conta..." : "Criar minha conta"}
+          {!isSubmitting && <ArrowUpRight size={17} />}
         </Button>
         {message && (
           <p

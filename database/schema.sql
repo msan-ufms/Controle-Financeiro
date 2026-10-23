@@ -5,6 +5,9 @@
 -- =====================================================
 
 -- 1. PERFIS DOS USUARIOS
+--auth.users: guarda a identidade de autenticação, incluindo e-mail e informações protegidas da senha. 
+--O Supabase mantém os dados de autenticação em uma tabela própria, chamada auth.users, que é gerenciada pelo serviço de autenticação.
+--public.profiles: guarda os dados complementares do usuário, como nome, telefone e avatar.
 CREATE TABLE public.profiles (
     id UUID PRIMARY KEY
         REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -16,6 +19,7 @@ CREATE TABLE public.profiles (
 );
 
 -- 2. CATEGORIAS
+--public.categories: guarda as categorias de cada usuário.
 CREATE TABLE public.categories (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id UUID NOT NULL
@@ -36,6 +40,7 @@ CREATE TABLE public.categories (
 );
 
 -- 3. TRANSACOES FINANCEIRAS
+--public.transactions: guarda as transações de cada usuário.
 CREATE TABLE public.transactions (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id UUID NOT NULL
@@ -93,6 +98,51 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 
+-- 6. CRIACAO AUTOMATICA DE PERFIL DE USUARIO
+--Quando o Supabase cria um usuário em auth.users, precisamos de um gatilho (trigger) para criar o registro correspondente em public.profiles.
+--para não precisar inserir manualmente os dados em profiles.
+--NEW.id: reutiliza o identificador do usuário autenticado.
+--raw_user_meta_data: recupera o nome enviado pelo formulário de cadastro.
+--COALESCE: garante um nome padrão caso o nome não esteja disponível.
+--AFTER INSERT ON auth.users: cria o perfil automaticamente após o registro do usuário.
+--SECURITY DEFINER e search_path = '': ajudam a executar a função com permissões controladas e evitar ambiguidades na resolução de objetos do banco.
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    INSERT INTO public.profiles (id, name)
+    VALUES (
+        NEW.id,
+        COALESCE(
+            NULLIF(NEW.raw_user_meta_data ->> 'name', ''),
+            'Usuário'
+        )
+    );
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+
+CREATE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_new_user();
+
+
 -- =====================================================
 -- FIM
 -- =====================================================
+
+
+
+
+
+
+
+
