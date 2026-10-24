@@ -177,11 +177,15 @@ export default function CategoriesPage({
         return;
       }
 
-      const { error: insertError } = await supabase.from("categories").insert({
-        user_id: user.id,
-        name: normalized,
-        type: "despesa",
-      });
+      const { data: newCategory, error: insertError } = await supabase
+        .from("categories")
+        .insert({
+          user_id: user.id,
+          name: normalized,
+          type: "despesa",
+        })
+        .select("id, name")
+        .single();
 
       if (insertError) {
         setError(
@@ -192,9 +196,15 @@ export default function CategoriesPage({
         return;
       }
 
-      setCategories((current) =>
-        [...current, normalized].sort((a, b) => a.localeCompare(b, "pt-BR")),
-      );
+      if (newCategory) {
+        setCategoryRecords((current) => [...current, newCategory]);
+
+        setCategories((current) =>
+          [...current, newCategory.name].sort((a, b) =>
+            a.localeCompare(b, "pt-BR"),
+          ),
+        );
+      }
 
       setNotice("Categoria cadastrada com sucesso.");
     }
