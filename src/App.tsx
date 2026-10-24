@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./components/layout/AppLayout";
 import DashboardPage from "./pages/DashboardPage";
@@ -10,10 +10,31 @@ import { initialPayables } from "./data/mockPayables";
 import type { Payable } from "./types/payable";
 import UnderConstructionPage from "./pages/UnderConstructionPage";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+import { supabase } from "./lib/supabase";
 
 export default function App() {
   const [payables, setPayables] = useState<Payable[]>(initialPayables);
   const [categories, setCategories] = useState<string[]>([]);
+
+  //carrega as categorias do usuário autenticado ao iniciar o aplicativo
+  useEffect(() => {
+    async function loadCategories() {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("name")
+        .eq("type", "despesa")
+        .order("name", { ascending: true });
+
+      if (error) {
+        console.error("Erro ao carregar categorias:", error);
+        return;
+      }
+
+      setCategories((data ?? []).map((category) => category.name));
+    }
+
+    loadCategories();
+  }, []);
 
   return (
     <Routes>
