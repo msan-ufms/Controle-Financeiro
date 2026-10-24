@@ -6,14 +6,13 @@ import LoginPage from "./pages/LoginPage";
 import PayablesPage from "./pages/PayablesPage";
 import RegisterPage from "./pages/RegisterPage";
 import CategoriesPage from "./pages/CategoriesPage";
-import { initialPayables } from "./data/mockPayables";
 import type { Payable } from "./types/payable";
 import UnderConstructionPage from "./pages/UnderConstructionPage";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { supabase } from "./lib/supabase";
 
 export default function App() {
-  const [payables, setPayables] = useState<Payable[]>(initialPayables);
+  const [payables, setPayables] = useState<Payable[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
 
   //carrega as categorias do usuário autenticado ao iniciar o aplicativo
