@@ -7,14 +7,13 @@ import PayablesPage from "./pages/PayablesPage";
 import RegisterPage from "./pages/RegisterPage";
 import CategoriesPage from "./pages/CategoriesPage";
 import { initialPayables } from "./data/mockPayables";
-import { initialCategories } from "./data/categories";
 import type { Payable } from "./types/payable";
 import UnderConstructionPage from "./pages/UnderConstructionPage";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 export default function App() {
   const [payables, setPayables] = useState<Payable[]>(initialPayables);
-  const [categories, setCategories] = useState<string[]>(initialCategories);
+  const [categories, setCategories] = useState<string[]>([]);
 
   return (
     <Routes>

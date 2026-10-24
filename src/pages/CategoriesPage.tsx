@@ -1,5 +1,6 @@
 import {
   useState,
+  useEffect,
   type Dispatch,
   type SetStateAction,
   type FormEvent,
@@ -9,6 +10,12 @@ import type { Payable } from "../types/payable";
 import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Modal from "../components/ui/Modal";
+import { supabase } from "../lib/supabase";
+
+type CategoryRecord = {
+  id: number | string;
+  name: string;
+};
 
 type CategoriesPageProps = {
   categories: string[];
@@ -28,6 +35,37 @@ export default function CategoriesPage({
   const [showModal, setShowModal] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [categoryRecords, setCategoryRecords] = useState<CategoryRecord[]>([]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCategories() {
+      const { data, error: queryError } = await supabase
+        .from("categories")
+        .select("id, name")
+        .eq("type", "despesa")
+        .order("name", { ascending: true });
+
+      if (!active) return;
+
+      if (queryError) {
+        setError("Não foi possível carregar as categorias do banco.");
+        return;
+      }
+
+      const records = (data ?? []) as CategoryRecord[];
+
+      setCategoryRecords(records);
+      setCategories(records.map((category) => category.name));
+    }
+
+    loadCategories();
+
+    return () => {
+      active = false;
+    };
+  }, [setCategories]);
 
   function openNew() {
     setName("");
@@ -52,7 +90,7 @@ export default function CategoriesPage({
     setError("");
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const normalized = name.trim().replace(/\s+/g, " ");
@@ -74,10 +112,47 @@ export default function CategoriesPage({
     }
 
     if (editingCategory !== null) {
-      setCategories((current) =>
+      const record = categoryRecords.find(
+        (category) => category.name === editingCategory,
+      );
+
+      if (!record) {
+        setError("Não foi possível identificar a categoria no banco.");
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from("categories")
+        .update({
+          name: normalized,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", record.id)
+        .eq("type", "despesa");
+
+      if (updateError) {
+        setError(
+          updateError.code === "23505"
+            ? "Já existe uma categoria com esse nome."
+            : "Não foi possível atualizar a categoria no banco de dados.",
+        );
+        return;
+      }
+
+      setCategoryRecords((current) =>
         current.map((category) =>
-          category === editingCategory ? normalized : category,
+          category.id === record.id
+            ? { ...category, name: normalized }
+            : category,
         ),
+      );
+
+      setCategories((current) =>
+        current
+          .map((category) =>
+            category === editingCategory ? normalized : category,
+          )
+          .sort((a, b) => a.localeCompare(b, "pt-BR")),
       );
 
       setPayables((current) =>
@@ -90,6 +165,33 @@ export default function CategoriesPage({
 
       setNotice("Categoria atualizada com sucesso.");
     } else {
+      setError("");
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        setError("Não foi possível identificar o usuário autenticado.");
+        return;
+      }
+
+      const { error: insertError } = await supabase.from("categories").insert({
+        user_id: user.id,
+        name: normalized,
+        type: "despesa",
+      });
+
+      if (insertError) {
+        setError(
+          insertError.code === "23505"
+            ? "Já existe uma categoria com esse nome."
+            : "Não foi possível cadastrar a categoria no banco de dados.",
+        );
+        return;
+      }
+
       setCategories((current) =>
         [...current, normalized].sort((a, b) => a.localeCompare(b, "pt-BR")),
       );
@@ -100,29 +202,55 @@ export default function CategoriesPage({
     closeModal();
   }
 
-  function remove(category: string) {
-    const linkedCount = payables.filter(
-      (payable) => payable.category === category,
-    ).length;
+  async function remove(categoryName: string) {
+    setError("");
+    setNotice("");
 
-    if (linkedCount > 0) {
+    const record = categoryRecords.find(
+      (category) => category.name === categoryName,
+    );
+
+    if (!record) {
+      setError("Não foi possível identificar a categoria no banco.");
+      return;
+    }
+
+    const hasLinkedPayables = payables.some(
+      (payable) => payable.category === categoryName,
+    );
+
+    if (hasLinkedPayables) {
       setError(
-        `Não é possível excluir esta categoria: ela está vinculada a ${linkedCount} conta(s). Altere a categoria dessas contas primeiro.`,
+        "Não é possível excluir uma categoria vinculada a contas a pagar.",
       );
       return;
     }
 
-    if (categories.length <= 1) {
-      setError("Mantenha pelo menos uma categoria cadastrada.");
+    const { error: deleteError } = await supabase
+      .from("categories")
+      .delete()
+      .eq("id", record.id)
+      .eq("type", "despesa");
+
+    if (deleteError) {
+      setError(
+        deleteError.code === "23503"
+          ? "Não é possível excluir esta categoria porque existem contas vinculadas a ela."
+          : "Não foi possível excluir a categoria do banco de dados.",
+      );
       return;
     }
 
-    if (window.confirm(`Excluir a categoria "${category}"?`)) {
-      setCategories((current) => current.filter((item) => item !== category));
+    setCategoryRecords((current) =>
+      current.filter((category) => category.id !== record.id),
+    );
 
-      setError("");
-      setNotice("Categoria excluída com sucesso.");
-    }
+    setCategories((current) =>
+      current.filter((category) => category !== categoryName),
+    );
+
+    setNotice("Categoria excluída com sucesso.");
+    closeModal();
   }
 
   return (
