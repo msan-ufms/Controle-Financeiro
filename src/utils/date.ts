@@ -12,3 +12,11 @@ export function getTodayDate(): string {
 
   return `${year}-${month}-${day}`;
 }
+
+export function getFormattedToday(): string {
+  return new Date().toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+  });
+}
