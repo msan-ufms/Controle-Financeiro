@@ -78,71 +78,6 @@ export default function PayablesPage({
     }
   }, []);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadPayables() {
-      const { data, error } = await supabase
-        .from("transactions")
-        .select(
-          `
-        id,
-        description,
-        category_id,
-        amount,
-        due_date,
-        status,
-        paid_at,
-        notes,
-        categories (
-          name
-        )
-      `,
-        )
-        .eq("type", "despesa")
-        .order("due_date", { ascending: true });
-
-      if (!active) return;
-
-      if (error) {
-        setNotice("Não foi possível carregar as contas do banco.");
-        console.error("Erro ao carregar contas:", error);
-        return;
-      }
-
-      const records: Payable[] = (data ?? []).map((item) => {
-        const dueDate = item.due_date;
-        const paymentDate = item.paid_at?.slice(0, 10) || undefined;
-        const today = getTodayDate();
-
-        const status: PayableStatus = paymentDate
-          ? "Paga"
-          : dueDate < today
-            ? "Vencida"
-            : "Pendente";
-
-        return {
-          id: Number(item.id),
-          description: item.description,
-          category: item.categories?.[0]?.name ?? "",
-          dueDate,
-          paymentDate,
-          amount: Number(item.amount),
-          status,
-          notes: item.notes ?? "",
-        };
-      });
-
-      setPayables(records);
-    }
-
-    loadPayables();
-
-    return () => {
-      active = false;
-    };
-  }, [setPayables]);
-
   const filtered = useMemo(
     () =>
       payables.filter(
@@ -186,14 +121,48 @@ export default function PayablesPage({
       notes: values.notes.trim(),
     };
 
-    // A edição será integrada ao Supabase em uma próxima etapa.
+    // A edição integrada ao Supabase.
+
     if (payableId !== undefined) {
+      const { data: categoryData, error: categoryError } = await supabase
+        .from("categories")
+        .select("id")
+        .eq("name", normalized.category)
+        .eq("type", "despesa")
+        .single();
+
+      if (categoryError || !categoryData) {
+        console.error("Erro ao localizar categoria:", categoryError);
+        setNotice("Não foi possível localizar a categoria selecionada.");
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from("transactions")
+        .update({
+          category_id: categoryData.id,
+          description: normalized.description,
+          amount: normalized.amount,
+          due_date: normalized.dueDate,
+          status: normalized.status.toLowerCase(),
+          paid_at: normalized.paymentDate ?? null,
+          notes: normalized.notes || null,
+        })
+        .eq("id", payableId);
+
+      if (updateError) {
+        console.error("Erro ao atualizar conta:", updateError);
+        setNotice("Não foi possível atualizar a conta no banco.");
+        return;
+      }
+
       setPayables((current) =>
         current.map((item) =>
           item.id === payableId ? { ...item, ...normalized } : item,
         ),
       );
-      setNotice("Conta atualizada nesta demonstração.");
+
+      setNotice("Conta atualizada com sucesso.");
       setShowForm(false);
       setEditing(null);
       return;
@@ -253,15 +222,31 @@ export default function PayablesPage({
     setEditing(null);
   }
 
-  function markPaid(payable: Payable) {
-    //Essa função marca o pagamento e insere a data atual como data de pagamento.
+  //Essa função marca o pagamento e insere a data atual como data de pagamento.
+  async function markPaid(payable: Payable) {
+    const paymentDate = getTodayDate();
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({
+        status: "paga",
+        paid_at: paymentDate,
+      })
+      .eq("id", payable.id);
+
+    if (error) {
+      console.error("Erro ao marcar conta como paga:", error);
+      setNotice("Não foi possível registrar o pagamento no banco.");
+      return;
+    }
+
     setPayables((current) =>
       current.map((item) =>
         item.id === payable.id
           ? {
               ...item,
               status: "Paga",
-              paymentDate: getTodayDate(),
+              paymentDate,
             }
           : item,
       ),
@@ -270,12 +255,27 @@ export default function PayablesPage({
     setNotice("Conta marcada como paga.");
   }
 
-  function unmarkPaid(payable: Payable) {
-    //Essa função remove a data de pagamento e recupera o status correto segundo o vencimento.
+  //Essa função remove a data de pagamento e recupera o status correto segundo o vencimento.
+
+  async function unmarkPaid(payable: Payable) {
     const today = getTodayDate();
 
     const status: PayableStatus =
       payable.dueDate < today ? "Vencida" : "Pendente";
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({
+        status: status.toLowerCase(),
+        paid_at: null,
+      })
+      .eq("id", payable.id);
+
+    if (error) {
+      console.error("Erro ao desfazer pagamento:", error);
+      setNotice("Não foi possível desfazer o pagamento no banco.");
+      return;
+    }
 
     setPayables((current) =>
       current.map((item) =>
@@ -292,13 +292,27 @@ export default function PayablesPage({
     setNotice("Pagamento desfeito. O status da conta foi atualizado.");
   }
 
-  function remove(payable: Payable) {
-    if (window.confirm(`Excluir a conta "${payable.description}"?`)) {
-      setPayables((current) =>
-        current.filter((item) => item.id !== payable.id),
-      );
-      setNotice("Conta removida desta demonstração.");
+  async function remove(payable: Payable) {
+    const confirmed = window.confirm(
+      `Excluir a conta "${payable.description}"?`,
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("transactions")
+      .delete()
+      .eq("id", payable.id);
+
+    if (error) {
+      console.error("Erro ao excluir conta:", error);
+      setNotice("Não foi possível excluir a conta do banco.");
+      return;
     }
+
+    setPayables((current) => current.filter((item) => item.id !== payable.id));
+
+    setNotice("Conta excluída com sucesso.");
   }
 
   return (

@@ -6,33 +6,89 @@ import LoginPage from "./pages/LoginPage";
 import PayablesPage from "./pages/PayablesPage";
 import RegisterPage from "./pages/RegisterPage";
 import CategoriesPage from "./pages/CategoriesPage";
-import type { Payable } from "./types/payable";
+import type { Payable, PayableStatus } from "./types/payable";
 import UnderConstructionPage from "./pages/UnderConstructionPage";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { supabase } from "./lib/supabase";
+import { getTodayDate } from "./utils/date";
 
 export default function App() {
   const [payables, setPayables] = useState<Payable[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
 
-  //carrega as categorias do usuário autenticado ao iniciar o aplicativo
+  //carrega as categorias e contas do usuário autenticado ao iniciar o aplicativo
   useEffect(() => {
-    async function loadCategories() {
-      const { data, error } = await supabase
-        .from("categories")
-        .select("name")
-        .eq("type", "despesa")
-        .order("name", { ascending: true });
+    let active = true;
 
-      if (error) {
-        console.error("Erro ao carregar categorias:", error);
+    async function loadInitialData() {
+      const [categoriesResult, transactionsResult] = await Promise.all([
+        supabase
+          .from("categories")
+          .select("id, name")
+          .eq("type", "despesa")
+          .order("name", { ascending: true }),
+
+        supabase
+          .from("transactions")
+          .select(
+            "id, description, category_id, amount, due_date, status, paid_at, notes",
+          )
+          .eq("type", "despesa")
+          .order("due_date", { ascending: true }),
+      ]);
+
+      if (!active) return;
+
+      if (categoriesResult.error) {
+        console.error("Erro ao carregar categorias:", categoriesResult.error);
         return;
       }
 
-      setCategories((data ?? []).map((category) => category.name));
+      if (transactionsResult.error) {
+        console.error("Erro ao carregar contas:", transactionsResult.error);
+        return;
+      }
+
+      const categoriesData = categoriesResult.data ?? [];
+      const transactionsData = transactionsResult.data ?? [];
+
+      setCategories(categoriesData.map((category) => category.name));
+
+      const categoriesById = new Map(
+        categoriesData.map((category) => [Number(category.id), category.name]),
+      );
+
+      const today = getTodayDate();
+
+      const records: Payable[] = transactionsData.map((item) => {
+        const paymentDate = item.paid_at?.slice(0, 10) || undefined;
+
+        const status: PayableStatus = paymentDate
+          ? "Paga"
+          : item.due_date < today
+            ? "Vencida"
+            : "Pendente";
+
+        return {
+          id: Number(item.id),
+          description: item.description,
+          category: categoriesById.get(Number(item.category_id)) ?? "",
+          dueDate: item.due_date,
+          paymentDate,
+          amount: Number(item.amount),
+          status,
+          notes: item.notes ?? "",
+        };
+      });
+
+      setPayables(records);
     }
 
-    loadCategories();
+    loadInitialData();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (
