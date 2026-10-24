@@ -34,7 +34,7 @@ export default function App() {
             "id, description, category_id, amount, due_date, status, paid_at, notes",
           )
           .eq("type", "despesa")
-          .order("due_date", { ascending: true }),
+          .order("updated_at", { ascending: false }),
       ]);
 
       if (!active) return;

@@ -137,7 +137,7 @@ export default function PayablesPage({
         return;
       }
 
-      const { error: updateError } = await supabase
+      const { data: updatedTransaction, error: updateError } = await supabase
         .from("transactions")
         .update({
           category_id: categoryData.id,
@@ -148,7 +148,9 @@ export default function PayablesPage({
           paid_at: normalized.paymentDate ?? null,
           notes: normalized.notes || null,
         })
-        .eq("id", payableId);
+        .eq("id", payableId)
+        .select("updated_at")
+        .single();
 
       if (updateError) {
         console.error("Erro ao atualizar conta:", updateError);
@@ -156,11 +158,23 @@ export default function PayablesPage({
         return;
       }
 
-      setPayables((current) =>
-        current.map((item) =>
-          item.id === payableId ? { ...item, ...normalized } : item,
-        ),
-      );
+      if (updateError || !updatedTransaction) {
+        console.error("Erro ao atualizar conta:", updateError);
+        setNotice("Não foi possível atualizar a conta no banco.");
+        return;
+      }
+
+      setPayables((current) => {
+        const updatedPayable = {
+          ...current.find((item) => item.id === payableId)!,
+          ...normalized,
+        };
+
+        return [
+          updatedPayable,
+          ...current.filter((item) => item.id !== payableId),
+        ];
+      });
 
       setNotice("Conta atualizada com sucesso.");
       setShowForm(false);
