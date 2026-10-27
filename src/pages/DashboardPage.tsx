@@ -5,6 +5,7 @@ import { formatCurrency } from "../utils/currency";
 import SummaryCard from "../components/dashboard/SummaryCard";
 import RecentPayables from "../components/dashboard/RecentPayables";
 import Button from "../components/ui/Button";
+import { getFormattedToday } from "../utils/date";
 
 export default function DashboardPage({ payables }: { payables: Payable[] }) {
   const navigate = useNavigate();
@@ -20,14 +21,13 @@ export default function DashboardPage({ payables }: { payables: Payable[] }) {
     0,
   );
   const totalPaid = paid.reduce((sum, payable) => sum + payable.amount, 0);
+  const today = getFormattedToday();
 
   return (
     <div className="space-y-7">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="mb-2 text-sm font-semibold text-emerald-700">
-            QUINTA-FEIRA, 15 DE OUTUBRO
-          </p>
+          <p className="mb-2 text-sm font-semibold text-emerald-700">{today}</p>
           <h1 className="font-display text-3xl font-extrabold tracking-tight text-slate-900">
             Seu financeiro, em dia.
           </h1>

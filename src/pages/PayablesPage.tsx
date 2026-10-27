@@ -17,6 +17,7 @@ import PayableForm from "../components/payables/PayableForm";
 import PayableFilters from "../components/payables/PayableFilters";
 import PayableTable from "../components/payables/PayableTable";
 import { formatCurrency } from "../utils/currency";
+import { supabase } from "../lib/supabase";
 
 type PayablesPageProps = {
   payables: Payable[];
@@ -99,7 +100,7 @@ export default function PayablesPage({
     setShowForm(true);
   }
 
-  function save(values: PayableFormValues, payableId?: number) {
+  async function save(values: PayableFormValues, payableId?: number) {
     const amount = Number(values.amount.replace(",", "."));
 
     const status: PayableStatus =
@@ -113,42 +114,153 @@ export default function PayablesPage({
       description: values.description.trim(),
       category: values.category,
       dueDate: values.dueDate,
-      paymentDate: status === "Paga" ? values.paymentDate : undefined,
+      paymentDate:
+        status === "Paga" ? values.paymentDate || getTodayDate() : undefined,
       amount,
       status,
       notes: values.notes.trim(),
     };
 
+    // A edição integrada ao Supabase.
+
     if (payableId !== undefined) {
-      setPayables((current) =>
-        current.map((item) =>
-          item.id === payableId ? { ...item, ...normalized } : item,
-        ),
-      );
-      setNotice("Conta atualizada nesta demonstração.");
-    } else {
-      setPayables((current) => [
-        {
-          id: Math.max(0, ...current.map((item) => item.id)) + 1,
+      const { data: categoryData, error: categoryError } = await supabase
+        .from("categories")
+        .select("id")
+        .eq("name", normalized.category)
+        .eq("type", "despesa")
+        .single();
+
+      if (categoryError || !categoryData) {
+        console.error("Erro ao localizar categoria:", categoryError);
+        setNotice("Não foi possível localizar a categoria selecionada.");
+        return;
+      }
+
+      const { data: updatedTransaction, error: updateError } = await supabase
+        .from("transactions")
+        .update({
+          category_id: categoryData.id,
+          description: normalized.description,
+          amount: normalized.amount,
+          due_date: normalized.dueDate,
+          status: normalized.status.toLowerCase(),
+          paid_at: normalized.paymentDate ?? null,
+          notes: normalized.notes || null,
+        })
+        .eq("id", payableId)
+        .select("updated_at")
+        .single();
+
+      if (updateError) {
+        console.error("Erro ao atualizar conta:", updateError);
+        setNotice("Não foi possível atualizar a conta no banco.");
+        return;
+      }
+
+      if (updateError || !updatedTransaction) {
+        console.error("Erro ao atualizar conta:", updateError);
+        setNotice("Não foi possível atualizar a conta no banco.");
+        return;
+      }
+
+      setPayables((current) => {
+        const updatedPayable = {
+          ...current.find((item) => item.id === payableId)!,
           ...normalized,
-        },
-        ...current,
-      ]);
-      setNotice("Conta adicionada nesta demonstração.");
+        };
+
+        return [
+          updatedPayable,
+          ...current.filter((item) => item.id !== payableId),
+        ];
+      });
+
+      setNotice("Conta atualizada com sucesso.");
+      setShowForm(false);
+      setEditing(null);
+      return;
     }
+
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !userData.user) {
+      console.error("Erro ao identificar usuário:", userError);
+      setNotice("Não foi possível identificar o usuário.");
+      return;
+    }
+
+    const { data: categoryData, error: categoryError } = await supabase
+      .from("categories")
+      .select("id")
+      .eq("name", normalized.category)
+      .eq("type", "despesa")
+      .single();
+
+    if (categoryError || !categoryData) {
+      console.error("Erro ao localizar categoria:", categoryError);
+      setNotice("Não foi possível localizar a categoria selecionada.");
+      return;
+    }
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("transactions")
+      .insert({
+        user_id: userData.user.id,
+        category_id: categoryData.id,
+        description: normalized.description,
+        type: "despesa",
+        amount: normalized.amount,
+        due_date: normalized.dueDate,
+        status: normalized.status.toLowerCase(),
+        paid_at: normalized.paymentDate ?? null,
+        notes: normalized.notes || null,
+      })
+      .select("id")
+      .single();
+
+    if (insertError || !inserted) {
+      console.error("Erro ao cadastrar conta:", insertError);
+      setNotice("Não foi possível cadastrar a conta no banco.");
+      return;
+    }
+
+    const newPayable: Payable = {
+      id: Number(inserted.id),
+      ...normalized,
+    };
+
+    setPayables((current) => [newPayable, ...current]);
+    setNotice("Conta cadastrada com sucesso.");
     setShowForm(false);
     setEditing(null);
   }
 
-  function markPaid(payable: Payable) {
-    //Essa função marca o pagamento e insere a data atual como data de pagamento.
+  //Essa função marca o pagamento e insere a data atual como data de pagamento.
+  async function markPaid(payable: Payable) {
+    const paymentDate = getTodayDate();
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({
+        status: "paga",
+        paid_at: paymentDate,
+      })
+      .eq("id", payable.id);
+
+    if (error) {
+      console.error("Erro ao marcar conta como paga:", error);
+      setNotice("Não foi possível registrar o pagamento no banco.");
+      return;
+    }
+
     setPayables((current) =>
       current.map((item) =>
         item.id === payable.id
           ? {
               ...item,
               status: "Paga",
-              paymentDate: getTodayDate(),
+              paymentDate,
             }
           : item,
       ),
@@ -157,12 +269,27 @@ export default function PayablesPage({
     setNotice("Conta marcada como paga.");
   }
 
-  function unmarkPaid(payable: Payable) {
-    //Essa função remove a data de pagamento e recupera o status correto segundo o vencimento.
+  //Essa função remove a data de pagamento e recupera o status correto segundo o vencimento.
+
+  async function unmarkPaid(payable: Payable) {
     const today = getTodayDate();
 
     const status: PayableStatus =
       payable.dueDate < today ? "Vencida" : "Pendente";
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({
+        status: status.toLowerCase(),
+        paid_at: null,
+      })
+      .eq("id", payable.id);
+
+    if (error) {
+      console.error("Erro ao desfazer pagamento:", error);
+      setNotice("Não foi possível desfazer o pagamento no banco.");
+      return;
+    }
 
     setPayables((current) =>
       current.map((item) =>
@@ -179,13 +306,27 @@ export default function PayablesPage({
     setNotice("Pagamento desfeito. O status da conta foi atualizado.");
   }
 
-  function remove(payable: Payable) {
-    if (window.confirm(`Excluir a conta "${payable.description}"?`)) {
-      setPayables((current) =>
-        current.filter((item) => item.id !== payable.id),
-      );
-      setNotice("Conta removida desta demonstração.");
+  async function remove(payable: Payable) {
+    const confirmed = window.confirm(
+      `Excluir a conta "${payable.description}"?`,
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("transactions")
+      .delete()
+      .eq("id", payable.id);
+
+    if (error) {
+      console.error("Erro ao excluir conta:", error);
+      setNotice("Não foi possível excluir a conta do banco.");
+      return;
     }
+
+    setPayables((current) => current.filter((item) => item.id !== payable.id));
+
+    setNotice("Conta excluída com sucesso.");
   }
 
   return (
