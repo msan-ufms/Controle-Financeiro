@@ -88,7 +88,29 @@ CREATE INDEX idx_transactions_category
     ON public.transactions(category_id);
 
 
--- 5. SEGURANCA EM NIVEL DE LINHA (RLS)
+-- 5. ATUALIZAÇÃO AUTOMÁTICA DA DATA DE MODIFICAÇÃO
+-- Atualiza automaticamente o campo updated_at da tabela transactions
+-- sempre que um registro for alterado, permitindo identificar as contas
+-- modificadas mais recentemente no histórico do Dashboard.
+
+CREATE OR REPLACE FUNCTION public.set_transaction_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER set_transactions_updated_at
+BEFORE UPDATE ON public.transactions
+FOR EACH ROW
+EXECUTE FUNCTION public.set_transaction_updated_at();
+
+
+
+-- 6. SEGURANCA EM NIVEL DE LINHA (RLS)
 -- Ativa o controle de acesso aos registros de cada tabela.
 -- O acesso sera permitido conforme as politicas de seguranca
 -- definidas posteriormente para cada usuario autenticado.
@@ -98,7 +120,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 
--- 6. CRIACAO AUTOMATICA DE PERFIL DE USUARIO
+-- 7. CRIACAO AUTOMATICA DE PERFIL DE USUARIO
 --Quando o Supabase cria um usuário em auth.users, precisamos de um gatilho (trigger) para criar o registro correspondente em public.profiles.
 --para não precisar inserir manualmente os dados em profiles.
 --NEW.id: reutiliza o identificador do usuário autenticado.
@@ -135,7 +157,7 @@ FOR EACH ROW
 EXECUTE FUNCTION public.handle_new_user();
 
 
--- 7. POLITICAS DE SEGURANCA (RLS)
+-- 8. POLITICAS DE SEGURANCA (RLS)
 
 -- POLÍTICAS DE CONSULTAS: 
 -- permite que usuários autenticados façam consultas às tabelas,
@@ -215,7 +237,7 @@ FOR DELETE
 TO authenticated
 USING ((SELECT auth.uid()) = user_id);
 
--- 8. GRANT DE PERMISSOES 
+-- 9. GRANT DE PERMISSOES 
 --GRANT SELECT: permite que usuários autenticados façam consultas à tabela.
 
 --PERMITE A LEITURA
