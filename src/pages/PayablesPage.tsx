@@ -23,6 +23,7 @@ type PayablesPageProps = {
   payables: Payable[];
   setPayables: Dispatch<SetStateAction<Payable[]>>;
   categories: string[];
+  setCategories: Dispatch<SetStateAction<string[]>>;
 };
 
 function getTodayDate() {
@@ -62,6 +63,7 @@ export default function PayablesPage({
   payables,
   setPayables,
   categories,
+  setCategories,
 }: PayablesPageProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("Todas");
@@ -98,6 +100,74 @@ export default function PayablesPage({
   function openEdit(payable: Payable) {
     setEditing(payable);
     setShowForm(true);
+  }
+
+  async function createCategory(name: string): Promise<boolean> {
+    const categoryName = name.trim();
+
+    if (!categoryName) {
+      setNotice("Informe o nome da categoria.");
+      return false;
+    }
+
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !userData.user) {
+      console.error("Erro ao identificar usuário:", userError);
+      setNotice("Não foi possível identificar o usuário.");
+      return false;
+    }
+
+    // Verifica se a categoria já existe para esse usuário.
+    const { data: existingCategory, error: searchError } = await supabase
+      .from("categories")
+      .select("id, name")
+      .eq("user_id", userData.user.id)
+      .eq("name", categoryName)
+      .eq("type", "despesa")
+      .maybeSingle();
+
+    if (searchError) {
+      console.error("Erro ao verificar categoria:", searchError);
+      setNotice("Não foi possível verificar a categoria.");
+      return false;
+    }
+
+    if (existingCategory) {
+      setCategories((current) =>
+        current.includes(existingCategory.name)
+          ? current
+          : [...current, existingCategory.name].sort((a, b) =>
+              a.localeCompare(b),
+            ),
+      );
+
+      return true;
+    }
+
+    // Cadastra a nova categoria como despesa.
+    const { data, error } = await supabase
+      .from("categories")
+      .insert({
+        user_id: userData.user.id,
+        name: categoryName,
+        type: "despesa",
+      })
+      .select("id, name")
+      .single();
+
+    if (error || !data) {
+      console.error("Erro ao cadastrar categoria:", error);
+      setNotice("Não foi possível cadastrar a categoria.");
+      return false;
+    }
+
+    setCategories((current) =>
+      [...current, data.name].sort((a, b) => a.localeCompare(b)),
+    );
+
+    setNotice("Categoria criada com sucesso.");
+    return true;
   }
 
   async function save(values: PayableFormValues, payableId?: number) {
@@ -415,6 +485,7 @@ export default function PayablesPage({
             setEditing(null);
           }}
           onSave={save}
+          onCreateCategory={createCategory}
         />
       )}
     </div>

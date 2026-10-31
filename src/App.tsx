@@ -115,6 +115,7 @@ export default function App() {
                 payables={payables}
                 setPayables={setPayables}
                 categories={categories}
+                setCategories={setCategories}
               />
             </AppLayout>
           </ProtectedRoute>

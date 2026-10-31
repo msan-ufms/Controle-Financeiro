@@ -25,6 +25,7 @@ type PayableFormProps = {
   categories: string[];
   onClose: () => void;
   onSave: (values: PayableFormValues, payableId?: number) => void;
+  onCreateCategory: (name: string) => Promise<boolean>;
 };
 
 function getTodayDate() {
@@ -53,9 +54,14 @@ export default function PayableForm({
   categories,
   onClose,
   onSave,
+  onCreateCategory,
 }: PayableFormProps) {
   const [form, setForm] = useState<PayableFormValues>(emptyForm);
   const [error, setError] = useState("");
+
+  const [newCategory, setNewCategory] = useState("");
+  const [showNewCategory, setShowNewCategory] = useState(false);
+  const [creatingCategory, setCreatingCategory] = useState(false);
 
   useEffect(() => {
     if (payable) {
@@ -71,8 +77,21 @@ export default function PayableForm({
     } else {
       setForm({ ...emptyForm, category: categories[0] ?? "" });
     }
+
     setError("");
-  }, [payable, categories]);
+    setNewCategory("");
+    setShowNewCategory(false);
+  }, [payable]);
+
+  // Seleciona a primeira categoria quando a lista é carregada.
+  useEffect(() => {
+    if (!payable && !form.category && categories.length > 0) {
+      setForm((current) => ({
+        ...current,
+        category: categories[0],
+      }));
+    }
+  }, [payable, categories, form.category]);
 
   function update<K extends keyof PayableFormValues>(
     key: K,
@@ -93,6 +112,33 @@ export default function PayableForm({
     });
   }
 
+  async function handleCreateCategory() {
+    const name = newCategory.trim();
+
+    if (!name) {
+      setError("Informe o nome da categoria.");
+      return;
+    }
+
+    setCreatingCategory(true);
+    setError("");
+
+    try {
+      const success = await onCreateCategory(name);
+
+      if (success) {
+        update("category", name);
+        setNewCategory("");
+        setShowNewCategory(false);
+      }
+    } catch (error) {
+      console.error("Erro ao criar categoria:", error);
+      setError("Não foi possível criar a categoria.");
+    } finally {
+      setCreatingCategory(false);
+    }
+  }
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -103,15 +149,18 @@ export default function PayableForm({
       setError("Informe um valor maior que zero.");
       return;
     }
+
     if (!form.description.trim()) {
       setError("Informe a descrição da conta.");
       return;
     }
+
     if (!form.category || !categories.includes(form.category)) {
       setError("Selecione uma categoria válida.");
       return;
     }
-    const finalStatus = form.paymentDate //a data de pagamento determina se a conta foi paga; caso contrário, o vencimento determina se está pendente ou vencida.
+
+    const finalStatus = form.paymentDate
       ? "Paga"
       : getStatusByDueDate(form.dueDate, "Pendente");
 
@@ -146,6 +195,7 @@ export default function PayableForm({
               placeholder="Ex.: Conta de internet, aluguel..."
             />
           </div>
+
           <Input
             label="Valor (R$) *"
             name="amount"
@@ -157,6 +207,7 @@ export default function PayableForm({
             onChange={(event) => update("amount", event.target.value)}
             placeholder="0,00"
           />
+
           <Input
             label="Data de vencimento *"
             name="dueDate"
@@ -165,17 +216,54 @@ export default function PayableForm({
             value={form.dueDate}
             onChange={(event) => update("dueDate", event.target.value)}
           />
-          <Select
-            label="Categoria *"
-            name="category"
-            required
-            value={form.category}
-            onChange={(event) => update("category", event.target.value)}
-            options={categories.map((category) => ({
-              label: category,
-              value: category,
-            }))}
-          />
+
+          <div>
+            <Select
+              label="Categoria *"
+              name="category"
+              required
+              value={form.category}
+              onChange={(event) => update("category", event.target.value)}
+              options={categories.map((category) => ({
+                label: category,
+                value: category,
+              }))}
+            />
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowNewCategory((current) => !current);
+                setNewCategory("");
+                setError("");
+              }}
+              className="mt-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
+            >
+              {showNewCategory ? "Cancelar criação" : "+ Criar nova categoria"}
+            </button>
+
+            {showNewCategory && (
+              <div className="mt-3 space-y-2 rounded-xl border border-slate-200 p-3">
+                <Input
+                  label="Nome da nova categoria"
+                  name="newCategory"
+                  value={newCategory}
+                  maxLength={50}
+                  onChange={(event) => setNewCategory(event.target.value)}
+                  placeholder="Ex.: Academia"
+                />
+
+                <button
+                  type="button"
+                  onClick={handleCreateCategory}
+                  disabled={creatingCategory}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {creatingCategory ? "Salvando..." : "Salvar categoria"}
+                </button>
+              </div>
+            )}
+          </div>
 
           <Input
             label="Data de pagamento"
@@ -185,12 +273,14 @@ export default function PayableForm({
             max={getTodayDate()}
             onChange={(event) => update("paymentDate", event.target.value)}
           />
+
           <div className="sm:col-span-2">
             <label className="block">
               <span className="mb-2 block text-sm font-bold text-slate-700">
                 Observações{" "}
                 <span className="font-normal text-slate-400">(opcional)</span>
               </span>
+
               <textarea
                 rows={3}
                 value={form.notes}
@@ -201,6 +291,7 @@ export default function PayableForm({
             </label>
           </div>
         </div>
+
         {error && (
           <p
             role="alert"
@@ -209,10 +300,12 @@ export default function PayableForm({
             {error}
           </p>
         )}
+
         <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
           <Button variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
+
           <Button type="submit">
             <Check size={17} /> {payable ? "Salvar alterações" : "Salvar conta"}
           </Button>

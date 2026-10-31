@@ -129,13 +129,17 @@ ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 --AFTER INSERT ON auth.users: cria o perfil automaticamente após o registro do usuário.
 --SECURITY DEFINER e search_path = '': ajudam a executar a função com permissões controladas e evitar ambiguidades na resolução de objetos do banco.
 
+BEGIN;
+
+-- Atualiza a função que cria o perfil do usuário
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER
+RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = ''
-AS $$
+SET search_path TO ''
+AS $function$
 BEGIN
+    -- Cria o perfil
     INSERT INTO public.profiles (id, name)
     VALUES (
         NEW.id,
@@ -145,9 +149,47 @@ BEGIN
         )
     );
 
+    -- Cria as categorias padrão de despesas
+    INSERT INTO public.categories (user_id, name, type)
+    VALUES
+        (NEW.id, 'Alimentação', 'despesa'),
+        (NEW.id, 'Moradia', 'despesa'),
+        (NEW.id, 'Transporte', 'despesa'),
+        (NEW.id, 'Saúde', 'despesa'),
+        (NEW.id, 'Educação', 'despesa'),
+        (NEW.id, 'Lazer', 'despesa'),
+        (NEW.id, 'Compras', 'despesa'),
+        (NEW.id, 'Serviços', 'despesa'),
+        (NEW.id, 'Outros', 'despesa')
+    ON CONFLICT (user_id, name, type) DO NOTHING;
+
     RETURN NEW;
 END;
-$$;
+$function$;
+
+-- Cria as categorias para os usuários já cadastrados
+INSERT INTO public.categories (user_id, name, type)
+SELECT
+    users.id,
+    defaults.name,
+    'despesa'
+FROM auth.users AS users
+CROSS JOIN (
+    VALUES
+        ('Alimentação'),
+        ('Moradia'),
+        ('Transporte'),
+        ('Saúde'),
+        ('Educação'),
+        ('Lazer'),
+        ('Compras'),
+        ('Serviços'),
+        ('Outros')
+) AS defaults(name)
+ON CONFLICT (user_id, name, type) DO NOTHING;
+
+COMMIT;
+
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
