@@ -27,11 +27,11 @@ export default function RecentPayables({ payables }: { payables: Payable[] }) {
           Ver todas as contas <ArrowUpRight className="ml-1 inline" size={15} />
         </button>
       </div>
-      <div className="divide-y divide-slate-100">
+      <div className="space-y-3 bg-slate-50/50 p-3 sm:space-y-0 sm:bg-white sm:p-0 sm:divide-y sm:divide-slate-100">
         {payables.slice(0, 5).map((payable) => (
           <div
             key={payable.id}
-            className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm sm:rounded-none sm:border-0 sm:px-6 sm:py-4 sm:shadow-none"
           >
             <div className="flex min-w-0 items-center gap-3">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-50 text-slate-500">
