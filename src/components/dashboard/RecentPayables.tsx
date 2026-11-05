@@ -28,7 +28,7 @@ export default function RecentPayables({ payables }: { payables: Payable[] }) {
         </button>
       </div>
       <div className="divide-y divide-slate-100">
-        {payables.slice(0, 4).map((payable) => (
+        {payables.slice(0, 5).map((payable) => (
           <div
             key={payable.id}
             className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6"
