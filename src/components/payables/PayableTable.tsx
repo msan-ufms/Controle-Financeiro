@@ -125,7 +125,7 @@ export default function PayableTable({
           </tbody>
         </table>
       </div>
-      <div className="divide-y divide-slate-100 md:hidden">
+      <div className="space-y-3 bg-slate-50/50 p-3 md:hidden">
         {payables.map((payable) => (
           <PayableCard
             key={payable.id}
