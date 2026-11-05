@@ -7,7 +7,7 @@ import PayablesPage from "./pages/PayablesPage";
 import RegisterPage from "./pages/RegisterPage";
 import CategoriesPage from "./pages/CategoriesPage";
 import type { Payable, PayableStatus } from "./types/payable";
-import UnderConstructionPage from "./pages/UnderConstructionPage";
+import ReportsPage from "./pages/ReportsPage.tsx";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { supabase } from "./lib/supabase";
 import { getTodayDate } from "./utils/date";
@@ -159,7 +159,7 @@ export default function App() {
         element={
           <ProtectedRoute>
             <AppLayout>
-              <UnderConstructionPage />
+              <ReportsPage payables={payables} />
             </AppLayout>
           </ProtectedRoute>
         }
