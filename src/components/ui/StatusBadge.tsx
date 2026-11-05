@@ -9,12 +9,18 @@ export default function StatusBadge({ status }: { status: PayableStatus }) {
         ? "bg-rose-50 text-rose-700"
         : "bg-amber-50 text-amber-700";
   const Icon =
-    status === "Paga" ? CheckCircle2 : status === "Vencida" ? AlertCircle : Clock3;
-
+    status === "Paga"
+      ? CheckCircle2
+      : status === "Vencida"
+        ? AlertCircle
+        : Clock3;
+  const label = status === "Pendente" ? "A vencer" : status;
   return (
-    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-bold ${styles}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-bold ${styles}`}
+    >
       <Icon size={13} />
-      {status}
+      {label}
     </span>
   );
 }

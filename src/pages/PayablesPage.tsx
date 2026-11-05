@@ -6,7 +6,15 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { FileText, Plus, Wallet, Clock3, X } from "lucide-react";
+import {
+  FileText,
+  Plus,
+  Wallet,
+  Clock3,
+  X,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react";
 import type {
   Payable,
   PayableFormValues,
@@ -18,6 +26,7 @@ import PayableFilters from "../components/payables/PayableFilters";
 import PayableTable from "../components/payables/PayableTable";
 import { formatCurrency } from "../utils/currency";
 import { supabase } from "../lib/supabase";
+import { getMonthOptions, getYearOptions } from "../utils/date";
 
 type PayablesPageProps = {
   payables: Payable[];
@@ -37,22 +46,30 @@ function getTodayDate() {
 
 function MiniStat({
   label,
-  value,
+  count,
+  amount,
   icon,
 }: {
   label: string;
-  value: string;
+  count: number;
+  amount: string;
   icon: ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-soft">
+    <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-soft">
       <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
         {icon}
       </div>
+
       <div className="min-w-0">
         <p className="text-xs font-semibold text-slate-400">{label}</p>
-        <p className="mt-1 truncate font-display text-lg font-extrabold text-slate-900">
-          {value}
+
+        <p className="mt-1 font-display text-xl font-extrabold text-slate-900">
+          {count}
+        </p>
+
+        <p className="mt-1 text-xs text-slate-500">
+          Valor total: <strong>{amount}</strong>
         </p>
       </div>
     </div>
@@ -65,8 +82,20 @@ export default function PayablesPage({
   categories,
   setCategories,
 }: PayablesPageProps) {
+  const today = new Date();
+
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("Todas");
+  const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
+  const [showStats, setShowStats] = useState(true);
+  function changeMonth(direction: number) {
+    const date = new Date(selectedYear, selectedMonth - 1 + direction, 1);
+
+    setSelectedMonth(date.getMonth() + 1);
+    setSelectedYear(date.getFullYear());
+  }
+
   const [showForm, setShowForm] = useState(() =>
     new URLSearchParams(window.location.search).has("nova"),
   );
@@ -82,15 +111,71 @@ export default function PayablesPage({
 
   const filtered = useMemo(
     () =>
-      payables.filter(
-        (payable) =>
-          (filter === "Todas" || payable.status === filter) &&
-          `${payable.description} ${payable.category}`
-            .toLowerCase()
-            .includes(search.toLowerCase()),
-      ),
-    [payables, filter, search],
+      payables.filter((payable) => {
+        const [year, month] = payable.dueDate.split("-");
+
+        const matchesMonth =
+          Number(month) === selectedMonth && Number(year) === selectedYear;
+
+        const matchesStatus =
+          filter === "Todas" ||
+          payable.status === filter ||
+          (filter === "Em aberto" &&
+            (payable.status === "Pendente" || payable.status === "Vencida"));
+
+        const matchesSearch = `${payable.description} ${payable.category}`
+          .toLowerCase()
+          .includes(search.toLowerCase());
+
+        return matchesMonth && matchesStatus && matchesSearch;
+      }),
+    [payables, selectedMonth, selectedYear, filter, search],
   );
+
+  const monthOptions = getMonthOptions();
+
+  const yearOptions = getYearOptions(
+    payables.map((payable) => payable.dueDate),
+  );
+
+  const monthlyPayables = useMemo(
+    () =>
+      payables.filter((payable) => {
+        const [year, month] = payable.dueDate.split("-");
+
+        return Number(month) === selectedMonth && Number(year) === selectedYear;
+      }),
+    [payables, selectedMonth, selectedYear],
+  );
+
+  const payableStats = useMemo(() => {
+    const pending = monthlyPayables.filter(
+      (item) => item.status === "Pendente",
+    );
+
+    const overdue = monthlyPayables.filter((item) => item.status === "Vencida");
+
+    const paid = monthlyPayables.filter((item) => item.status === "Paga");
+
+    const open = [...pending, ...overdue];
+
+    return {
+      totalCount: monthlyPayables.length,
+      totalAmount: monthlyPayables.reduce((sum, item) => sum + item.amount, 0),
+
+      pendingCount: pending.length,
+      pendingAmount: pending.reduce((sum, item) => sum + item.amount, 0),
+
+      openCount: open.length,
+      openAmount: open.reduce((sum, item) => sum + item.amount, 0),
+
+      overdueCount: overdue.length,
+      overdueAmount: overdue.reduce((sum, item) => sum + item.amount, 0),
+
+      paidCount: paid.length,
+      paidAmount: paid.reduce((sum, item) => sum + item.amount, 0),
+    };
+  }, [monthlyPayables]);
 
   function openNew() {
     setEditing(null);
@@ -434,29 +519,62 @@ export default function PayablesPage({
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <MiniStat
-          label="Todas as contas"
-          value={String(payables.length)}
-          icon={<FileText size={17} />}
-        />
-        <MiniStat
-          label="Em aberto"
-          value={String(
-            payables.filter((item) => item.status === "Pendente").length,
-          )}
-          icon={<Clock3 size={17} />}
-        />
-        <MiniStat
-          label="Valor em aberto"
-          value={formatCurrency(
-            payables
-              .filter((item) => item.status !== "Paga")
-              .reduce((sum, item) => sum + item.amount, 0),
-          )}
-          icon={<Wallet size={17} />}
-        />
-      </div>
+      <section className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-display font-bold text-slate-800">
+            Resumo do mês
+          </h2>
+
+          <button
+            type="button"
+            onClick={() => setShowStats(!showStats)}
+            className="text-sm font-semibold text-emerald-700 md:hidden"
+          >
+            {showStats ? "Ocultar indicadores" : "Mostrar indicadores"}
+          </button>
+        </div>
+
+        <div
+          className={`${
+            showStats ? "grid" : "hidden"
+          } grid-cols-2 gap-3 md:grid md:grid-cols-3 lg:grid-cols-5`}
+        >
+          <MiniStat
+            label="Todas as contas"
+            count={payableStats.totalCount}
+            amount={formatCurrency(payableStats.totalAmount)}
+            icon={<FileText size={17} />}
+          />
+
+          <MiniStat
+            label="Contas pagas"
+            count={payableStats.paidCount}
+            amount={formatCurrency(payableStats.paidAmount)}
+            icon={<CheckCircle2 size={17} />}
+          />
+
+          <MiniStat
+            label="Contas em aberto"
+            count={payableStats.openCount}
+            amount={formatCurrency(payableStats.openAmount)}
+            icon={<Wallet size={17} />}
+          />
+
+          <MiniStat
+            label="Contas a vencer"
+            count={payableStats.pendingCount}
+            amount={formatCurrency(payableStats.pendingAmount)}
+            icon={<Clock3 size={17} />}
+          />
+
+          <MiniStat
+            label="Contas vencidas"
+            count={payableStats.overdueCount}
+            amount={formatCurrency(payableStats.overdueAmount)}
+            icon={<AlertCircle size={17} />}
+          />
+        </div>
+      </section>
 
       <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-soft">
         <PayableFilters
@@ -465,10 +583,18 @@ export default function PayablesPage({
           status={filter}
           onStatusChange={setFilter}
           resultCount={filtered.length}
+          month={selectedMonth}
+          year={selectedYear}
+          monthOptions={monthOptions}
+          yearOptions={yearOptions}
+          onMonthChange={setSelectedMonth}
+          onYearChange={setSelectedYear}
+          onPreviousMonth={() => changeMonth(-1)}
+          onNextMonth={() => changeMonth(1)}
         />
         <PayableTable
           payables={filtered}
-          totalPayables={payables.length}
+          totalPayables={monthlyPayables.length}
           onEdit={openEdit}
           onMarkPaid={markPaid}
           onUnmarkPaid={unmarkPaid}
