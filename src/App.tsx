@@ -17,6 +17,7 @@ export default function App() {
   const [categories, setCategories] = useState<string[]>([]);
 
   //carrega as categorias e contas do usuário autenticado ao iniciar o aplicativo
+
   useEffect(() => {
     let active = true;
 
@@ -84,10 +85,27 @@ export default function App() {
       setPayables(records);
     }
 
-    loadInitialData();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && (event === "INITIAL_SESSION" || event === "SIGNED_IN")) {
+        // Executa a consulta depois que o callback de autenticação terminar.
+        setTimeout(() => {
+          if (active) {
+            void loadInitialData();
+          }
+        }, 0);
+      }
+
+      if (event === "SIGNED_OUT") {
+        setCategories([]);
+        setPayables([]);
+      }
+    });
 
     return () => {
       active = false;
+      subscription.unsubscribe();
     };
   }, []);
 
