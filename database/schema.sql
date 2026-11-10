@@ -39,13 +39,44 @@ CREATE TABLE public.categories (
         UNIQUE (user_id, id)
 );
 
--- 3. TRANSACOES FINANCEIRAS
+-- 3. GRUPOS DE PARCELAMENTO E REPETICAO
+-- Guarda os dados gerais de cada grupo. Cada parcela ou ocorrencia continua
+-- sendo uma transacao independente na tabela public.transactions.
+CREATE TABLE public.transaction_groups (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id UUID NOT NULL
+        REFERENCES auth.users(id) ON DELETE CASCADE,
+    group_type VARCHAR(15) NOT NULL
+        CHECK (group_type IN ('parcelamento', 'repeticao')),
+    amount_mode VARCHAR(20),
+    item_count INTEGER NOT NULL
+        CHECK (item_count >= 2),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT chk_transaction_groups_amount_mode
+        CHECK (
+            (group_type = 'parcelamento'
+                AND amount_mode IN ('dividir_total', 'repetir_valor'))
+            OR
+            (group_type = 'repeticao'
+                AND amount_mode IS NULL)
+        ),
+
+    -- Permite que transactions valide o grupo e o proprietario em conjunto.
+    CONSTRAINT uq_transaction_groups_user_id
+        UNIQUE (user_id, id)
+);
+
+-- 4. TRANSACOES FINANCEIRAS
+
 --public.transactions: guarda as transações de cada usuário.
 CREATE TABLE public.transactions (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id UUID NOT NULL
         REFERENCES auth.users(id) ON DELETE CASCADE,
     category_id BIGINT,
+    group_id BIGINT,
+    group_position INTEGER,
     description VARCHAR(200) NOT NULL,
     type VARCHAR(10) NOT NULL,
     amount NUMERIC(12, 2) NOT NULL,
@@ -61,6 +92,23 @@ CREATE TABLE public.transactions (
         REFERENCES public.categories(user_id, id)
         ON DELETE RESTRICT,
 
+    -- Garante que o grupo vinculado pertence ao mesmo usuario da transacao.
+    CONSTRAINT fk_transactions_group
+        FOREIGN KEY (user_id, group_id)
+        REFERENCES public.transaction_groups(user_id, id)
+        ON DELETE RESTRICT,
+
+    -- Contas normais nao possuem grupo nem posicao.
+    -- Contas agrupadas precisam de uma posicao inteira maior que zero.
+    CONSTRAINT chk_transactions_group_position
+        CHECK (
+            (group_id IS NULL AND group_position IS NULL)
+            OR
+            (group_id IS NOT NULL
+                AND group_position IS NOT NULL
+                AND group_position > 0)
+        ),
+
     CONSTRAINT ck_transactions_type
         CHECK (type IN ('receita', 'despesa')),
 
@@ -74,7 +122,7 @@ CREATE TABLE public.transactions (
         CHECK (status <> 'paga' OR paid_at IS NOT NULL)
 );
 
--- 4. INDICES
+-- 5. INDICES
 CREATE INDEX idx_categories_user
     ON public.categories(user_id);
 
@@ -87,8 +135,18 @@ CREATE INDEX idx_transactions_user_status
 CREATE INDEX idx_transactions_category
     ON public.transactions(category_id);
 
+-- Acelera a busca das transacoes que pertencem a um grupo.
+CREATE INDEX idx_transactions_group_id
+    ON public.transactions(group_id)
+    WHERE group_id IS NOT NULL;
 
--- 5. ATUALIZAÇÃO AUTOMÁTICA DA DATA DE MODIFICAÇÃO
+-- Impede que duas transacoes ocupem a mesma posicao dentro do mesmo grupo.
+CREATE UNIQUE INDEX uq_transactions_group_position
+    ON public.transactions(group_id, group_position)
+    WHERE group_id IS NOT NULL;
+
+
+-- 6. ATUALIZAÇÃO AUTOMÁTICA DA DATA DE MODIFICAÇÃO
 -- Atualiza automaticamente o campo updated_at da tabela transactions
 -- sempre que um registro for alterado, permitindo identificar as contas
 -- modificadas mais recentemente no histórico do Dashboard.
@@ -110,7 +168,7 @@ EXECUTE FUNCTION public.set_transaction_updated_at();
 
 
 
--- 6. SEGURANCA EM NIVEL DE LINHA (RLS)
+-- 7. SEGURANCA EM NIVEL DE LINHA (RLS)
 -- Ativa o controle de acesso aos registros de cada tabela.
 -- O acesso sera permitido conforme as politicas de seguranca
 -- definidas posteriormente para cada usuario autenticado.
@@ -119,8 +177,9 @@ EXECUTE FUNCTION public.set_transaction_updated_at();
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transaction_groups ENABLE ROW LEVEL SECURITY;
 
--- 7. CRIACAO AUTOMATICA DE PERFIL DE USUARIO
+-- 8. CRIACAO AUTOMATICA DE PERFIL DE USUARIO
 --Quando o Supabase cria um usuário em auth.users, precisamos de um gatilho (trigger) para criar o registro correspondente em public.profiles.
 --para não precisar inserir manualmente os dados em profiles.
 --NEW.id: reutiliza o identificador do usuário autenticado.
@@ -199,7 +258,7 @@ FOR EACH ROW
 EXECUTE FUNCTION public.handle_new_user();
 
 
--- 8. POLITICAS DE SEGURANCA (RLS)
+-- 9. POLITICAS DE SEGURANCA (RLS)
 
 -- POLÍTICAS DE CONSULTAS: 
 -- permite que usuários autenticados façam consultas às tabelas,
@@ -227,6 +286,14 @@ FOR SELECT
 TO authenticated
 USING ((SELECT auth.uid()) = user_id);
 
+-- POLITICAS PARA GRUPOS DE PARCELAMENTO E REPETICAO
+-- O usuario pode consultar e cadastrar somente os proprios grupos.
+CREATE POLICY "Usuário pode consultar próprios grupos de transações"
+ON public.transaction_groups
+FOR SELECT
+TO authenticated
+USING ((SELECT auth.uid()) = user_id);
+
 
 -- POLÍTICAS DE CADASTRO
 -- permite que usuários autenticados façam cadastros,
@@ -240,6 +307,12 @@ WITH CHECK ((SELECT auth.uid()) = user_id); -- with check: GARANTE QUE O USUÁRI
 
 CREATE POLICY "Usuário pode cadastrar próprias transações"
 ON public.transactions
+FOR INSERT
+TO authenticated
+WITH CHECK ((SELECT auth.uid()) = user_id);
+
+CREATE POLICY "Usuário pode cadastrar próprios grupos de transações"
+ON public.transaction_groups
 FOR INSERT
 TO authenticated
 WITH CHECK ((SELECT auth.uid()) = user_id);
@@ -279,13 +352,18 @@ FOR DELETE
 TO authenticated
 USING ((SELECT auth.uid()) = user_id);
 
--- 9. GRANT DE PERMISSOES 
+-- Os grupos nao possuem politicas de UPDATE ou DELETE:
+-- seus dados gerais e sua quantidade ficam fixos apos a criacao.
+-- As alteracoes das contas individuais sao controladas em transactions.
+
+-- 10. GRANT DE PERMISSOES 
 --GRANT SELECT: permite que usuários autenticados façam consultas à tabela.
 
 --PERMITE A LEITURA
 GRANT SELECT ON TABLE public.profiles TO authenticated;
 GRANT SELECT ON TABLE public.categories TO authenticated;
 GRANT SELECT ON TABLE public.transactions TO authenticated;
+GRANT SELECT, INSERT ON TABLE public.transaction_groups TO authenticated;
 
 -- PERMITE O CADASTRO. INSERÇÃO.
 GRANT INSERT ON TABLE public.categories TO authenticated;
@@ -309,6 +387,11 @@ ON SEQUENCE
     public.transactions_id_seq
 TO authenticated;
 
+-- Permissoes para gerar e consultar os identificadores dos grupos.
+GRANT USAGE, SELECT
+ON SEQUENCE public.transaction_groups_id_seq
+TO authenticated;
+
 -- AJUSTE DE PRIVILÉGIOS PADRÃO PARA TABELAS FUTURAS
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
 GRANT USAGE ON SEQUENCES TO authenticated;
@@ -324,7 +407,8 @@ REVOKE REFERENCES, TRIGGER, TRUNCATE
 ON TABLE
     public.profiles,
     public.categories,
-    public.transactions
+    public.transactions,
+    public.transaction_groups
 FROM anon;
 
 -- Remover todos os privilégios de anon das três tabelas,
@@ -332,7 +416,8 @@ REVOKE ALL PRIVILEGES
 ON TABLE
     public.profiles,
     public.categories,
-    public.transactions
+    public.transactions,
+    public.transaction_groups
 FROM anon;
 
 
@@ -367,10 +452,3 @@ FROM PUBLIC, anon, authenticated;
 -- =====================================================
 -- FIM
 -- =====================================================
-
-
-
-
-
-
-
