@@ -18,6 +18,16 @@ const emptyForm: PayableFormValues = {
   amount: "",
   status: "Pendente",
   notes: "",
+  registrationMode: "normal",
+
+  installmentAmountMode: "dividir_total",
+  installmentCount: "2",
+  customAmountPosition: "nenhuma",
+  customAmount: "",
+  remainderDistribution: "primeiras",
+
+  repetitionMode: "uma_vez",
+  repetitionCount: "2",
 };
 
 type PayableFormProps = {
@@ -73,6 +83,16 @@ export default function PayableForm({
         amount: String(payable.amount),
         status: payable.status,
         notes: payable.notes ?? "",
+
+        // Configurações iniciais para edição
+        registrationMode: "normal",
+        installmentAmountMode: "dividir_total",
+        installmentCount: "2",
+        customAmountPosition: "nenhuma",
+        customAmount: "",
+        remainderDistribution: "primeiras",
+        repetitionMode: "uma_vez",
+        repetitionCount: "2",
       });
     } else {
       setForm({ ...emptyForm, category: categories[0] ?? "" });
@@ -183,6 +203,63 @@ export default function PayableForm({
       onClose={onClose}
     >
       <form onSubmit={submit} className="space-y-5 p-5 sm:p-6">
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-sm font-bold text-slate-700">
+              Como deseja cadastrar?
+            </h3>
+            <p className="text-sm text-slate-500">
+              Escolha como esta conta será registrada.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => update("registrationMode", "normal")}
+              className={`rounded-xl border p-4 text-left transition ${
+                form.registrationMode === "normal"
+                  ? "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500"
+                  : "border-slate-200 hover:border-emerald-300"
+              }`}
+            >
+              <span className="block font-bold text-slate-800">Normal</span>
+              <span className="mt-1 block text-sm text-slate-500">
+                Uma única conta.
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => update("registrationMode", "parcelar")}
+              className={`rounded-xl border p-4 text-left transition ${
+                form.registrationMode === "parcelar"
+                  ? "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500"
+                  : "border-slate-200 hover:border-emerald-300"
+              }`}
+            >
+              <span className="block font-bold text-slate-800">Parcelar</span>
+              <span className="mt-1 block text-sm text-slate-500">
+                Dividir ou repetir o valor em parcelas.
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => update("registrationMode", "repetir")}
+              className={`rounded-xl border p-4 text-left transition ${
+                form.registrationMode === "repetir"
+                  ? "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500"
+                  : "border-slate-200 hover:border-emerald-300"
+              }`}
+            >
+              <span className="block font-bold text-slate-800">Repetir</span>
+              <span className="mt-1 block text-sm text-slate-500">
+                Criar contas recorrentes.
+              </span>
+            </button>
+          </div>
+        </div>
         <div className="grid gap-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <Input
